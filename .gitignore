@@ -1,0 +1,28 @@
+# Entorno virtual de Python
+.venv/
+venv/
+env/
+
+# Archivos de caché y compilación de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# Datos crudos y procesados (Capa Bronze, Silver, Gold)
+data/
+*.csv
+*.parquet
+*.json
+
+# Logs
+*.log
+
+# Variables de entorno y credenciales
+.env
+
+# Configuraciones locales de IDEs y del sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
