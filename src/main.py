@@ -3,7 +3,10 @@ import sys
 from pyspark.sql import SparkSession
 from pyspark.errors import PySparkException
 
-# 1. Configuración global del Logger
+
+from bronze_to_silver import clean_and_transform_silver
+
+# Configuración global del Logger
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
@@ -34,6 +37,7 @@ def main():
     try:
         spark = get_spark_session()
 
+        # --- ETAPA 1: INGESTA BRONZE ---
         path_bronze = "data/bronze/online_retail_raw.csv"
         logger.info(f"Leyendo dataset crudo desde la capa Bronze: {path_bronze}")
 
@@ -42,14 +46,21 @@ def main():
             .option("inferSchema", "true") \
             .csv(path_bronze)
 
-        total_filas = df_bronze.count()
-        logger.info(f"Datos crudos cargados. Total de registros leídos: {total_filas}")
+        total_bronze = df_bronze.count()
+        logger.info(f"Datos crudos cargados en Bronze: {total_bronze} registros.")
 
-        logger.info("Esquema inferido por Spark:")
-        df_bronze.printSchema()
+        # --- ETAPA 2: PROCESAMIENTO SILVER (DATA QUALITY) ---
+        df_silver = clean_and_transform_silver(df_bronze)
 
-        logger.info("Muestra de los primeros 5 registros:")
-        df_bronze.show(5, truncate=False)
+        total_silver = df_silver.count()
+        descartados = total_bronze - total_silver
+        logger.info(f"Registros válidos en Silver: {total_silver} | Registros descartados (precio <= 0): {descartados}")
+
+        logger.info("Muestra de 5 registros limpios en Silver:")
+        df_silver.select(
+            "id_factura", "id_cliente", "descripcion", 
+            "cantidad", "precio_unitario", "monto_total", "tipo_transaccion", "fecha"
+        ).show(5, truncate=False)
 
     except FileNotFoundError as fnf_err:
         logger.error(f"Error de archivo no encontrado: {fnf_err}")
