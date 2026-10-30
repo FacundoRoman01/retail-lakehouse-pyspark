@@ -6,12 +6,12 @@ services:
     container_name: mysql_lakehouse
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword123
-      MYSQL_DATABASE: retail_analytics
-      MYSQL_USER: data_engineer
-      MYSQL_PASSWORD: data_password123
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "3307:3306"
+      - "${DB_PORT}:3306"
     volumes:
       - mysql_lakehouse_data:/var/lib/mysql
 

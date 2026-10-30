@@ -1,5 +1,6 @@
 import logging
 import os
+from dotenv import load_dotenv
 import pyspark.sql.functions as F
 from pyspark.sql import DataFrame
 from pyspark.sql.types import DecimalType
@@ -7,11 +8,13 @@ from sqlalchemy import create_engine
 
 logger = logging.getLogger("RetailLakehouse.Gold")
 
-DB_USER = "data_engineer"
-DB_PASSWORD = "data_password123"
-DB_HOST = "localhost"
-DB_PORT = "3307"
-DB_NAME = "retail_analytics"
+load_dotenv()
+
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "3307")
+DB_NAME = os.getenv("DB_NAME")
 
 
 def compute_gold_metrics(df_silver: DataFrame) -> tuple[DataFrame, DataFrame]:
