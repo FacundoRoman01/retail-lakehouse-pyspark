@@ -9,6 +9,12 @@ __pycache__/
 *$py.class
 *.pyd
 
+
+# Caché y artefactos de Testing (Pytest)
+.pytest_cache/
+.coverage
+htmlcov/
+
 # Datos crudos y procesados (Capa Bronze, Silver, Gold)
 data/
 *.csv
@@ -17,6 +23,9 @@ data/
 
 # Logs
 *.log
+metastore_db/
+derby.log
+checkpoint/
 
 # Variables de entorno y credenciales
 .env
