@@ -1,6 +1,10 @@
 # Retail Lakehouse ETL Pipeline (Medallion Architecture)
 
+[![CI Data Pipeline Tests](https://github.com/FacundoRoman01/retail-lakehouse-pyspark/actions/workflows/tests.yml/badge.svg)](https://github.com/FacundoRoman01/retail-lakehouse-pyspark/actions/workflows/tests.yml)
+
 Pipeline end-to-end de Ingeniería de Datos basado en la **Arquitectura Medallón** (Bronze, Silver y Gold). El proyecto ingesta datos transaccionales crudos de retail, aplica auditoría y reglas de calidad de datos (Data Quality), calcula métricas clave de negocio (KPIs) y persiste los resultados tanto en un **Data Lake** (formato Parquet) como en un **Data Warehouse** relacional (MySQL sobre Docker).
+
+Incluye una suite de **pruebas unitarias automatizadas con Pytest** e **Integración Continua (CI) mediante GitHub Actions** para garantizar la integridad de las transformaciones con cada cambio de código.
 
 ---
 
@@ -28,8 +32,8 @@ El pipeline procesa los datos en tres capas desacopladas garantizando trazabilid
      ▼                                       ▼
 [ Data Lake ]                       [ Data Warehouse ]
 data/gold/ (Parquet / Snappy)       MySQL 8.0 en Docker (Puerto 3307)
-• kpi_ventas_provincia              • Tabla: kpi_ventas_provincia
-• kpi_rendimiento_productos         • Tabla: kpi_rendimiento_productos
+- kpi_ventas_provincia              • Tabla: kpi_ventas_provincia
+- kpi_rendimiento_productos         • Tabla: kpi_rendimiento_productos
 (Consumo: Data Science / ML)        (Consumo: Dashboards BI / SQL)
 ```
 
@@ -39,6 +43,8 @@ data/gold/ (Parquet / Snappy)       MySQL 8.0 en Docker (Puerto 3307)
 
 - **Apache Spark / PySpark:** Motor de cómputo distribuido para la ingesta, limpieza y agregación analítica.
 - **Python:** Lenguaje principal de orquestación y scripting.
+- **Pytest:** Framework para desarrollo y automatización de pruebas unitarias sobre DataFrames de PySpark.
+- **GitHub Actions:** Orquestación de CI/CD para testing continuo automatizado sobre entornos virtuales Linux Ubuntu.
 - **PyArrow & Fastparquet:** Almacenamiento columnar y compresión Snappy nativa en disco.
 - **Pandas & SQLAlchemy:** Conversión y carga relacional optimizada mediante inserción masiva por lotes (*bulk insert*).
 - **Docker & Docker Compose:** Contenerización del Data Warehouse (MySQL 8.0).
@@ -50,6 +56,9 @@ data/gold/ (Parquet / Snappy)       MySQL 8.0 en Docker (Puerto 3307)
 
 ```text
 retail-lakehouse-pyspark/
+├── .github/
+│   └── workflows/
+│       └── tests.yml             # Workflow de CI para testing en GitHub Actions
 ├── data/
 │   ├── bronze/                   # Archivo crudo inicial (online_retail_raw.csv)
 │   ├── silver/                   # Datos curados y normalizados en Parquet
@@ -57,11 +66,18 @@ retail-lakehouse-pyspark/
 │       ├── kpi_rendimiento_productos/
 │       └── kpi_ventas_provincia/
 ├── src/
+│   ├── __init__.py
 │   ├── bronze_to_silver.py       # Reglas de limpieza, imputación y Data Quality
 │   ├── explore_bronze.py         # Script exploratorio y auditoría estadística inicial
 │   ├── generate_raw_data.py      # Generador sintético de transacciones retail
 │   ├── silver_to_gold.py         # Cálculo de KPIs analíticos y carga a MySQL / Parquet
 │   └── main.py                   # Orquestador principal del pipeline
+├── test/
+│   ├── __init__.py
+│   ├── conftest.py               # Fixture para inicializar la sesión Spark aislada
+│   ├── test_gold_metrics.py      # Tests unitarios para las agregaciones de capa Gold
+│   └── test_silver_clean.py      # Tests unitarios para las reglas de limpieza Silver
+├── .env.example                  # Plantilla de variables de entorno requeridas
 ├── docker-compose.yml            # Configuración del servicio MySQL en Docker
 ├── requirements.txt              # Dependencias del entorno virtual de Python
 └── README.md                     # Documentación técnica
