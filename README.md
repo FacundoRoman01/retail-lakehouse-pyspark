@@ -179,12 +179,20 @@ El pipeline está configurado para ejecutarse de forma nativa en **Databricks Se
 ### En Databricks SQL Editor
 
 ```sql
+WITH facturacion_provincia AS (
+
+    SELECT provincia, facturacion_neta, total_pedidos,  
+
+    SUM(facturacion_neta) OVER() AS facturacion_pais
+    FROM workspace.default.gold_kpi_provincia
+
+)
 SELECT 
-    provincia, 
-    facturacion_neta, 
-    ROUND((facturacion_neta / SUM(facturacion_neta) OVER ()) * 100, 2) AS porcentaje_participacion
-FROM workspace.default.gold_kpi_provincia
+    provincia, facturacion_neta, total_pedidos, facturacion_pais,
+    ROUND((facturacion_neta / facturacion_pais) * 100, 2) AS porcentaje_participacion
+FROM facturacion_provincia
 ORDER BY porcentaje_participacion DESC;
+
 ```
 
 <img width="1617" height="800" alt="image" src="https://github.com/user-attachments/assets/03fa5564-1f1f-4524-978e-d5c6e417ded5" />
