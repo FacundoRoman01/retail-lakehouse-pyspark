@@ -5,6 +5,8 @@ from pyspark.sql import DataFrame
 
 logger = logging.getLogger("RetailLakehouse.Silver")
 
+IS_DATABRICKS = "DATABRICKS_RUNTIME_VERSION" in os.environ
+
 
 def clean_and_transform_silver(df_bronze: DataFrame) -> DataFrame:
     logger.info("Iniciando Data Quality: transformación Bronze -> Silver...")
@@ -31,19 +33,23 @@ def clean_and_transform_silver(df_bronze: DataFrame) -> DataFrame:
             F.to_date(F.col("fecha_factura"))
         )
 
-    # 3. Persistir en Silver con PyArrow 
-    path_silver = "data/silver/ventas"
-    os.makedirs(path_silver, exist_ok=True)
-    logger.info(f"Guardando datos curados en Silver: {path_silver}")
+    # 3. Persistir en Silver según el entorno
+    if IS_DATABRICKS:
+        logger.info("Guardando datos curados en Silver como Tabla Delta en Unity Catalog...")
+        df_silver.write.format("delta").mode("overwrite").saveAsTable("workspace.default.silver_ventas")
+        logger.info("Tabla 'workspace.default.silver_ventas' persistida en Delta Lake.")
+    else:
+        path_silver = "data/silver/ventas"
+        os.makedirs(path_silver, exist_ok=True)
+        logger.info(f"Guardando datos curados en Silver: {path_silver}")
 
-    # Convertimos a formato columnar PyArrow/Pandas y guardamos el Parquet
-    df_arrow = df_silver.toPandas()
-    df_arrow.to_parquet(
-        os.path.join(path_silver, "ventas_silver.parquet"),
-        engine="pyarrow",
-        compression="snappy",
-        index=False
-    )
+        df_arrow = df_silver.toPandas()
+        df_arrow.to_parquet(
+            os.path.join(path_silver, "ventas_silver.parquet"),
+            engine="pyarrow",
+            compression="snappy",
+            index=False
+        )
+        logger.info("Capa Silver generada y persistida exitosamente en Parquet.")
 
-    logger.info("Capa Silver generada y persistida exitosamente en Parquet.")
     return df_silver

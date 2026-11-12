@@ -1,20 +1,10 @@
 import logging
 import os
-from dotenv import load_dotenv
 import pyspark.sql.functions as F
 from pyspark.sql import DataFrame
 from pyspark.sql.types import DecimalType
-from sqlalchemy import create_engine
 
 logger = logging.getLogger("RetailLakehouse.Gold")
-
-load_dotenv()
-
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "3307")
-DB_NAME = os.getenv("DB_NAME")
 
 
 def compute_gold_metrics(df_silver: DataFrame) -> tuple[DataFrame, DataFrame]:
@@ -48,6 +38,19 @@ def compute_gold_metrics(df_silver: DataFrame) -> tuple[DataFrame, DataFrame]:
 
     logger.info("Métricas Gold calculadas exitosamente en memoria.")
     return df_kpi_provincia, df_kpi_productos
+
+
+def save_gold_to_databricks(df_provincia: DataFrame, df_productos: DataFrame):
+    """
+    Persiste los DataFrames agregados como Tablas Delta administradas en Unity Catalog.
+    """
+    logger.info("Guardando tablas Gold en formato Delta en Unity Catalog...")
+
+    df_provincia.write.format("delta").mode("overwrite").saveAsTable("workspace.default.gold_kpi_provincia")
+    logger.info("Tabla 'workspace.default.gold_kpi_provincia' persistida en Delta Lake.")
+
+    df_productos.write.format("delta").mode("overwrite").saveAsTable("workspace.default.gold_kpi_productos")
+    logger.info("Tabla 'workspace.default.gold_kpi_productos' persistida en Delta Lake.")
 
 
 def save_gold_to_lake(df_provincia: DataFrame, df_productos: DataFrame):
@@ -86,6 +89,17 @@ def load_gold_to_mysql(df_provincia: DataFrame, df_productos: DataFrame):
     """
     Carga los DataFrames a MySQL usando SQLAlchemy y Pandas en lotes optimizados (bulk insert).
     """
+    from dotenv import load_dotenv
+    from sqlalchemy import create_engine
+
+    load_dotenv()
+
+    DB_USER = os.getenv("DB_USER")
+    DB_PASSWORD = os.getenv("DB_PASSWORD")
+    DB_HOST = os.getenv("DB_HOST", "localhost")
+    DB_PORT = os.getenv("DB_PORT", "3307")
+    DB_NAME = os.getenv("DB_NAME")
+
     logger.info("Iniciando carga optimizada de Capa Gold hacia MySQL...")
     connection_url = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     engine = create_engine(connection_url)
