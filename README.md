@@ -2,39 +2,41 @@
 
 [![CI Data Pipeline Tests](https://github.com/FacundoRoman01/retail-lakehouse-pyspark/actions/workflows/tests.yml/badge.svg)](https://github.com/FacundoRoman01/retail-lakehouse-pyspark/actions/workflows/tests.yml)
 
-Pipeline end-to-end de Ingeniería de Datos basado en la **Arquitectura Medallón** (Bronze, Silver y Gold). El proyecto ingesta datos transaccionales crudos de retail, aplica auditoría y reglas de calidad de datos (Data Quality), calcula métricas clave de negocio (KPIs) y persiste los resultados tanto en un **Data Lake** (formato Parquet) como en un **Data Warehouse** relacional (MySQL sobre Docker).
+Pipeline end-to-end de Ingeniería de Datos basado en la **Arquitectura Medallón** (Bronze, Silver y Gold) con diseño **multi-entorno (Híbrido Local / Cloud)**. El proyecto ingesta datos transaccionales crudos de retail, aplica auditoría y reglas de calidad de datos (Data Quality), calcula métricas clave de negocio (KPIs) y persiste los resultados tanto en un **entorno local** (Parquet + MySQL en Docker) como en **Databricks Lakehouse** (Unity Catalog Volumes + tablas administradas **Delta Lake**).
 
-Incluye una suite de **pruebas unitarias automatizadas con Pytest** e **Integración Continua (CI) mediante GitHub Actions** para garantizar la integridad de las transformaciones con cada cambio de código.
+Incluye una suite de **pruebas unitarias automatizadas con Pytest**, **Integración Continua (CI) mediante GitHub Actions** y **orquestación en la nube con Databricks Jobs**.
 
 ---
 
 ## 🏗 Arquitectura del Sistema
 
-El pipeline procesa los datos en tres capas desacopladas garantizando trazabilidad, calidad y optimización para diferentes consumidores:
+El pipeline detecta automáticamente el entorno de ejecución (`DATABRICKS_RUNTIME_VERSION`) y adapta la estrategia de almacenamiento sin modificar el código de negocio:
 
 ```text
 [ Dataset Crudo (CSV) ]
            │
            ▼
-     [ BRONZE ]       --> data/bronze/online_retail_raw.csv
-           │              • Ingesta del dato histórico sin modificaciones
-           │              • Detección de anomalías y auditoría exploratoria
+     [ BRONZE ]        --> Local: data/bronze/online_retail_raw.csv
+           │               Cloud: /Volumes/workspace/default/raw_data/
+           │               • Ingesta del dato histórico sin modificaciones
+           │               • Detección de anomalías y auditoría exploratoria
            ▼
-     [ SILVER ]       --> data/silver/ventas/ (Parquet)
-           │              • Filtrado de registros inválidos (precios <= 0)
-           │              • Imputación de clientes nulos ('CONSUMIDOR_FINAL')
-           │              • Clasificación transaccional (VENTA / DEVOLUCION)
-           │              • Enriquecimiento con monto_total y fechas limpias
+     [ SILVER ]        --> Local: data/silver/ventas/ (Parquet)
+           │               Cloud: workspace.default.silver_ventas (Delta Lake)
+           │               • Filtrado de registros inválidos (precios <= 0)
+           │               • Imputación de clientes nulos ('CONSUMIDOR_FINAL')
+           │               • Clasificación transaccional (VENTA / DEVOLUCION)
+           │               • Enriquecimiento con monto_total y fechas limpias
            ▼
-     [  GOLD  ]       --> Capa Analítica y de Consumo
+     [  GOLD  ]        --> Capa Analítica y de Consumo
            │
      ┌─────┴─────────────────────────────────┐
      ▼                                       ▼
-[ Data Lake ]                       [ Data Warehouse ]
-data/gold/ (Parquet / Snappy)       MySQL 8.0 en Docker (Puerto 3307)
-- kpi_ventas_provincia              • Tabla: kpi_ventas_provincia
-- kpi_rendimiento_productos         • Tabla: kpi_rendimiento_productos
-(Consumo: Data Science / ML)        (Consumo: Dashboards BI / SQL)
+[ Entorno Local ]                   [ Databricks Cloud ]
+Parquet + MySQL 8.0 (Docker)        Unity Catalog & Delta Lake
+- kpi_ventas_provincia              • workspace.default.gold_kpi_provincia
+- kpi_rendimiento_productos         • workspace.default.gold_kpi_productos
+(Consumo: BI / SQL Local)           (Consumo: Databricks SQL Warehouse)
 ```
 
 ---
@@ -42,12 +44,15 @@ data/gold/ (Parquet / Snappy)       MySQL 8.0 en Docker (Puerto 3307)
 ## 🛠 Tecnologías Utilizadas
 
 - **Apache Spark / PySpark:** Motor de cómputo distribuido para la ingesta, limpieza y agregación analítica.
-- **Python:** Lenguaje principal de orquestación y scripting.
+- **Databricks Serverless & Unity Catalog:** Gobierno centralizado de datos (Volumes y Tablas Administradas) y cómputo elástico en la nube.
+- **Delta Lake:** Almacenamiento transaccional ACID, control de esquema (*Schema Enforcement*) y versionado (*Time Travel*) para las capas Silver y Gold.
+- **Databricks Jobs:** Orquestación de flujos de trabajo conectada directamente al repositorio Git.
+- **Python & SQL (Window Functions):** Lenguaje de orquestación, scripting y consultas analíticas avanzadas (`DENSE_RANK`, `SUM() OVER ()`).
 - **Pytest:** Framework para desarrollo y automatización de pruebas unitarias sobre DataFrames de PySpark.
 - **GitHub Actions:** Orquestación de CI/CD para testing continuo automatizado sobre entornos virtuales Linux Ubuntu.
-- **PyArrow & Fastparquet:** Almacenamiento columnar y compresión Snappy nativa en disco.
+- **PyArrow & Fastparquet:** Almacenamiento columnar y compresión Snappy nativa en disco para el entorno local.
 - **Pandas & SQLAlchemy:** Conversión y carga relacional optimizada mediante inserción masiva por lotes (*bulk insert*).
-- **Docker & Docker Compose:** Contenerización del Data Warehouse (MySQL 8.0).
+- **Docker & Docker Compose:** Contenerización del Data Warehouse local (MySQL 8.0).
 - **Logging & Error Handling:** Trazabilidad estandarizada mediante `logging` nativo y captura de excepciones con liberación controlada de la JVM de Spark.
 
 ---
@@ -129,6 +134,30 @@ Correr el orquestador general:
 python src/main.py
 ```
 
+
+
+---
+
+## ☁️ Despliegue y Orquestación en Databricks
+
+El pipeline está configurado para ejecutarse de forma nativa en **Databricks Serverless** mediante un **Databricks Job** (`retail-lakehouse-etl`) sincronizado con la rama `main` de este repositorio:
+
+1. **Gobierno en Unity Catalog:** Creación automática del esquema `workspace.default`, almacenamiento de archivos crudos en el Volume `raw_data` y registro de tablas administradas Delta (`silver_ventas`, `gold_kpi_provincia`, `gold_kpi_productos`).
+2. **Orquestación con Jobs:** Ejecución modular de `src/main.py` con trazabilidad de tiempos por etapa (*Timeline*) y monitoreo de estado.
+3. **Analítica Avanzada en SQL Warehouse:** Explotación de la capa Gold mediante consultas analíticas con **Window Functions** (`DENSE_RANK()` para Top-N por categoría y `SUM() OVER ()` para participación porcentual sobre la facturación nacional).
+
+### Evidencia de Ejecución en la Nube
+
+| Gobierno en Unity Catalog | Orquestación (Databricks Jobs) | Analítica con SQL Window Functions |
+| :---: | :---: | :---: |
+| ![Unity Catalog](docs/unity_catalog.png) | ![Job Timeline](docs/job_timeline.png) | ![SQL Editor](docs/sql_analytics.png) |
+
+---
+
+
+
+
+
 ---
 
 ## 📊 Reglas de Negocio y Data Quality Aplicadas
@@ -143,10 +172,20 @@ python src/main.py
 
 ---
 
-## 🔍 Verificación de Datos en MySQL
+---
 
-Para consultar las tablas cargadas en el Data Warehouse directamente desde la terminal:
+## 🔍 Verificación de Datos
 
-```bash
-docker exec -it mysql_lakehouse mysql -u data_engineer -pdata_password123 retail_analytics -e "SHOW TABLES; SELECT * FROM kpi_ventas_provincia LIMIT 5;"
+### En Databricks SQL Editor
+
+```sql
+SELECT 
+    provincia, 
+    facturacion_neta, 
+    ROUND((facturacion_neta / SUM(facturacion_neta) OVER ()) * 100, 2) AS porcentaje_participacion
+FROM workspace.default.gold_kpi_provincia
+ORDER BY porcentaje_participacion DESC;
 ```
+
+<img width="1617" height="800" alt="image" src="https://github.com/user-attachments/assets/03fa5564-1f1f-4524-978e-d5c6e417ded5" />
+
